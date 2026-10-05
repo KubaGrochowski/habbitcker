@@ -1023,30 +1023,7 @@
     row.animate({ transform: ['scale(1)', 'scale(1.025)', 'scale(1)'] }, { duration: 320, easing: 'cubic-bezier(.3,.7,.4,1)' });
     ripple(e.clientX, e.clientY, 1);
   });
-  /* ---------- morskie efekty: bąbelki, kręgi na wodzie, fala przez cały ekran przy 100% ---------- */
-  const sea = document.createElement('div');
-  sea.className = 'sea'; sea.setAttribute('aria-hidden', 'true');
-  sea.innerHTML = SEA_SVG; // ukryta pod ekranem; pokazuje się tylko przy 100% dnia
-  document.body.appendChild(sea);
-  // Bąbelki z kółka przy odhaczeniu: unoszą się, kołyszą i pękają.
-  function bubbles(el) {
-    if (calm()) return;
-    const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-    for (let i = 0; i < 11; i++) {
-      const s = 4 + Math.random() * 7, dx = (Math.random() - .5) * r.width * 1.4, rise = 36 + Math.random() * 60, sway = (Math.random() - .5) * 18;
-      const b = document.createElement('i');
-      b.className = 'bubble';
-      Object.assign(b.style, { left: cx - s / 2 + 'px', top: cy - s / 2 + 'px', width: s + 'px', height: s + 'px' });
-      document.body.appendChild(b);
-      b.animate([
-        { transform: 'translate(0,0) scale(.3)', opacity: 0 },
-        { transform: `translate(${dx * .4}px,${-rise * .3}px) scale(1)`, opacity: 1, offset: .2 },
-        { transform: `translate(${dx * .7 + sway}px,${-rise * .7}px) scale(1)`, opacity: .9, offset: .7 },
-        { transform: `translate(${dx}px,${-rise}px) scale(1.5)`, opacity: 0 }
-      ], { duration: 700 + Math.random() * 500, delay: Math.random() * 120, easing: 'cubic-bezier(.3,.6,.4,1)', fill: 'backwards' }).onfinish = () => b.remove();
-      setTimeout(() => b.remove(), 1600); // zapas, gdy karta w tle wstrzyma animacje
-    }
-  }
+  /* ---------- morskie efekty: kręgi na wodzie ---------- */
   // Kręgi na wodzie w miejscu dotknięcia.
   function ripple(x, y, k = 1) {
     if (calm()) return;
@@ -1060,32 +1037,15 @@
       setTimeout(() => r.remove(), 1000);
     });
   }
-  // 100% dnia: fala wyłania się spod ekranu i przechodzi przez cały ekran, z dna leci chmura bąbelków.
-  function swell() {
-    if (calm()) return;
-    sea.classList.remove('swell'); void sea.offsetWidth; sea.classList.add('swell');
-    setTimeout(() => sea.classList.remove('swell'), 2700);
-    for (let i = 0; i < 26; i++) {
-      const s = 5 + Math.random() * 10, x = Math.random() * innerWidth;
-      const b = document.createElement('i');
-      b.className = 'bubble';
-      Object.assign(b.style, { left: x + 'px', top: innerHeight - 10 + 'px', width: s + 'px', height: s + 'px' });
-      document.body.appendChild(b);
-      const rise = innerHeight * (.3 + Math.random() * .45), sway = (Math.random() - .5) * 60;
-      b.animate([
-        { transform: 'translate(0,0)', opacity: 0 },
-        { transform: `translate(${sway * .5}px,${-rise * .4}px)`, opacity: .9, offset: .3 },
-        { transform: `translate(${sway}px,${-rise}px) scale(1.4)`, opacity: 0 }
-      ], { duration: 1400 + Math.random() * 900, delay: Math.random() * 500, easing: 'ease-out', fill: 'backwards' }).onfinish = () => b.remove();
-      setTimeout(() => b.remove(), 3200);
-    }
-  }
   // Domknięcie dnia: zielona fala po kafelkach i podskok procentu.
   function celebrate() {
     navigator.vibrate?.([15, 60, 25]);
     if (calm()) return;
     $('week-pct').animate({ transform: ['scale(1)', 'scale(1.14)', 'scale(.98)', 'scale(1)'], color: ['#fff', '#4ADE80', '#4ADE80', '#fff'] }, { duration: 900, easing: 'ease-out' });
-    swell();
+    const off = 'inset 0 0 0 1px rgba(74,222,128,0), 0 0 0 0 rgba(74,222,128,0)';
+    [...list.querySelectorAll('.o-row[data-id]:not(.is-off)')].forEach((r, i) => r.animate(
+      { boxShadow: [off, 'inset 0 0 0 1px rgba(74,222,128,.9), 0 0 24px 0 rgba(74,222,128,.28)', off], transform: ['none', 'scale(1.015)', 'none'] },
+      { duration: 650, delay: 120 + i * 80, easing: 'ease-out' }));
   }
   // Po przebudowie listy: woda przelewa się ze starego poziomu, iskry, ewentualne świętowanie.
   const waterTop = l => `${(9 + (100 - l) * .88).toFixed(2)}%`; // jak w CSS: w środku obwódki, z zapasem na falę
@@ -1099,16 +1059,14 @@
     a[0].onfinish = end; setTimeout(end, 900); // zapas, gdy karta w tle wstrzyma animacje
   }
   function afterList(el) {
-    let filled = null;
     el.querySelectorAll('.c[data-lv]').forEach(c => {
       const p = +c.style.getPropertyValue('--lv'), was = levels.get(c.dataset.lv);
       levels.set(c.dataset.lv, p);
       if (was == null || was === p || calm()) return;
-      if (c.classList.contains('done')) { if (!document.hidden) { fillUp(c, was); filled = c; } return; }
+      if (c.classList.contains('done')) { if (!document.hidden) { fillUp(c, was); } return; }
       const top = waterTop;
       c.querySelectorAll('.wv').forEach(w => w.animate({ top: [top(was), top(p)] }, { duration: 650, easing: 'cubic-bezier(.3,.7,.3,1)' }));
     });
-    if (justCell) { const c = el.querySelector(`.ob[data-h="${CSS.escape(justCell.h)}"][data-k="${justCell.k}"] .c.done`); if (c) { if (c === filled) setTimeout(() => bubbles(c), 560); else bubbles(c); } }
     if (recordToast) { const m = recordToast; recordToast = null; setTimeout(() => toast(m), 500); }
     // koniec timera: jedno spokojne, zielone pulsowanie kafelka
     if (timerDone) {
