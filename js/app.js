@@ -1,4 +1,4 @@
-/* Grochu's tracker — tygodniowy tracker nawyków. Dane zapisywane lokalnie w przeglądarce (localStorage). */
+/* Habbitcker — tygodniowy tracker nawyków. Dane zapisywane lokalnie w przeglądarce (localStorage). */
 (() => {
   'use strict';
 
@@ -766,7 +766,7 @@
       setVal(h, t.k, h.type === 'bool' ? 1 : h.target); justCell = { h: h.id, k: t.k }; timerDone = h.id;
       navigator.vibrate?.([80, 60, 80]);
       toast(`${h.name}: zrobione`);
-      if ('Notification' in window && Notification.permission === 'granted' && document.hidden) { try { new Notification("Grochu's tracker", { body: `${h.name}: czas minął — zrobione ✓`, icon: 'icons/icon-192.png' }); } catch (_) { } }
+      if ('Notification' in window && Notification.permission === 'granted' && document.hidden) { try { new Notification("Habbitcker", { body: `${h.name}: czas minął — zrobione ✓`, icon: 'icons/icon-192.png' }); } catch (_) { } }
     } else {
       // Stop = pauza: kolejny start liczy od miejsca zatrzymania. Liczbowy: pełne minuty (godziny: co 0,01 h) dopisują się do wartości.
       const sk = h.id + '|' + t.k, total = Math.min(t.seconds, (Date.now() - t.startedAt) / 1000) + (state.spent[sk] || 0);

@@ -1,4 +1,4 @@
-/* Grochu's tracker — konto i synchronizacja z Supabase na żywo (logowanie e-mailem i hasłem, Realtime).
+/* Habbitcker — konto i synchronizacja z Supabase na żywo (logowanie e-mailem i hasłem, Realtime).
    Bez zewnętrznych bibliotek: Supabase Auth (GoTrue) i REST (PostgREST) przez fetch.
 
    Model synchronizacji: stan aplikacji jest spłaszczany do elementów (nawyk, wpis, notatka, kolejność, start).
