@@ -113,7 +113,8 @@
   }
   function status(h, d) {
     const k = key(d), t = todayKey();
-    if (k < h.created) return 'pre'; // nawyku jeszcze nie było
+    if (k < h.created) return 'pre'; // nawyku jeszcze nie było (albo zaczyna się w przyszłości)
+    if (h.once && k !== h.once) return 'off'; // jednorazowy: tylko w swoim dniu
     if (!h.days.includes(dow(d))) return 'off';
     if (breakAt(k)) return 'rest';
     if (k > t) return 'future';
@@ -131,7 +132,9 @@
   }
   const nf = v => v.toLocaleString('pl-PL', { maximumFractionDigits: 2 });
   const fmt = (h, v) => v == null ? '' : h.type === 'bool' ? (v >= 1 ? '✓' : '✕') : v >= 1000 ? (v / 1000).toLocaleString('pl-PL', { maximumFractionDigits: 1 }) + 'k' : nf(v);
-  const tgt = h => { const per = h.freq ? `${h.freq}× w tygodniu` : h.days.length === 7 ? 'codziennie' : h.days.map(d => DAYS[d]).join(' '); return h.type === 'bool' ? per : `${nf(h.target)} ${h.unit} · ${per}`; };
+  const dayLabel = k => { const d = fromKey(k); return `${d.getDate()} ${MONTHS_GEN[d.getMonth()]}`; };
+  const addMonths = (d, n) => { const x = new Date(d.getFullYear(), d.getMonth() + n, d.getDate()); if (x.getDate() !== d.getDate()) x.setDate(0); return x; };
+  const tgt = h => { const per = h.once ? `jednorazowo, ${dayLabel(h.once)}` : h.freq ? `${h.freq}× w tygodniu` : h.days.length === 7 ? 'codziennie' : h.days.map(d => DAYS[d]).join(' '); return h.type === 'bool' ? per : `${nf(h.target)} ${h.unit} · ${per}`; };
   const weekDates = (ws = weekStart) => ALL.map(i => addDays(ws, i));
 
   // Jeden wzór dla wszystkich procentów: każdy zaplanowany nawyk ma równą wagę, suma postępów ÷ liczba nawyków do dziś włącznie
@@ -385,9 +388,16 @@
     // Nawyki „nie dziś” zawsze na końcu, za linią. Pora dnia to tylko etykieta na kafelku.
     // Nawyki dodane po oglądanym tygodniu (telefon: po wybranym dniu) trafiają na sam dół do sekcji „Dodane później”.
     const ref = mobile ? selDay : (key(dates[0]) <= t && t <= key(end) ? fromKey(t) : null);
-    const isLater = h => h.created > key(mobile ? selDay : end);
+    // Jednorazowe pokazują się tylko w okresie, w którym wypadają. Nawyki, które zaczynają się w przyszłości (i jednorazowe na później),
+    // czekają w sekcji „Zaplanowane” — widocznej w bieżącym i przyszłych okresach, posortowanej po dacie.
+    const r0 = key(mobile ? selDay : dates[0]), r1 = key(mobile ? selDay : end);
+    const isPlanned = h => h.created > r1 && h.created > t && r1 >= t;
+    const listed = hs.filter(h => !h.once || (h.once >= r0 && h.once <= r1) || isPlanned(h));
+    const isLater = h => h.created > r1;
     const isOff = h => ref && status(h, ref) === 'off';
-    const cur = hs.filter(h => !isLater(h)), later = hs.filter(isLater);
+    const cur = listed.filter(h => !isLater(h));
+    const planned = listed.filter(isPlanned).sort((a, b) => a.created < b.created ? -1 : a.created > b.created ? 1 : 0);
+    const later = listed.filter(h => isLater(h) && !isPlanned(h));
     const onList = cur.filter(h => !isOff(h)), offList = cur.filter(isOff);
     // Zaległe z wczoraj: tylko nawyki tak/nie, które nie są codzienne, niezrobione i nieodpuszczone (liczbowe i codzienne nie trafiają do zaległych). Telefon: osobna sekcja na górze dzisiejszego dnia; komputer: plakietka przy nazwie.
     // Sięgają dwa dni wstecz: wczorajsze są pomarańczowe, przedwczorajsze (nienadrobione) czerwone.
@@ -406,6 +416,7 @@
     html += onList.map(rowHtml).join('');
     if (offList.length) html += (onList.length ? `<div class="grp sep" data-fk="g:off-sep"></div>` : '') + offList.map(rowHtml).join('');
     if (later.length) html += `<div class="grp later" data-fk="g:later">Dodane później</div>` + later.map(rowHtml).join('');
+    if (planned.length) html += `<div class="grp later" data-fk="g:planned">Zaplanowane</div>` + planned.map(rowHtml).join('');
     if (mobile && skipped.length) html += `<div class="grp later" data-fk="g:sk">Odpuszczone</div>` + skipped.map(skRowHtml).join('');
     const vw = $('view-week'), listEl = $('list');
     // „Dzień dobry”: przy pierwszym otwarciu danego dnia kafelki wjeżdżają z odbiciem, zaległe migają swoim kolorem
@@ -460,6 +471,7 @@
       const running = timer && timer.hid === h.id;
       const odTag = mobile ? '' : overdue.filter(o => o.h === h).map(o => `<span class="odtag${o.age === 2 ? ' old' : ''}">${o.age === 2 ? 'przedwczoraj' : 'wczoraj'}</span>`).join('');
       const tbtn = '';
+      if (isPlanned(h)) sub = h.once ? `${dayLabel(h.once)} · jednorazowo` : `od ${dayLabel(h.created)} · ${tgt(h)}`;
       if (running) sub = `<span data-timer-left>${fmtLeft(timerLeft())}</span> pozostało`;
       else if (canTime && h.type === 'bool' && spentOf(h, tk) > 0) sub = `${fmtLeft(timerNeed(h, tk))} pozostało`;
       const sk = streak(h);
@@ -558,14 +570,17 @@
   function openHabitForm(hid) {
     const h = hid ? state.habits.find(x => x.id === hid) : null;
     const days = h ? h.days : [];
+    const today = todayKey(), onceMax = key(addMonths(dayOnly(new Date()), 6));
     const body = `<form id="hform">
       <div class="field"><label for="f-name">Nazwa</label><input id="f-name" type="text" required maxlength="30" value="${h ? esc(h.name) : ''}"></div>
       <div class="field"><span class="lab">Rodzaj</span><div class="seg seg3"><label><input type="radio" name="f-type" id="f-type-bool" value="bool" ${!h || h.type === 'bool' ? 'checked' : ''}><span>Tak / nie</span></label><label><input type="radio" name="f-type" id="f-type-num" value="num" ${h && h.type === 'num' && !h.clock ? 'checked' : ''}><span>Liczbowy</span></label><label><input type="radio" name="f-type" id="f-type-timer" value="timer" ${h?.clock ? 'checked' : ''}><span>Timer</span></label></div></div>
       <div class="row3" id="f-numfields"><div class="field"><label for="f-target">Cel dzienny</label><input id="f-target" type="number" min="0.01" step="any" value="${h?.target ?? ''}"></div><div class="field"><label for="f-unit">Jednostka</label><input id="f-unit" type="text" value="${h ? esc(h.unit) : ''}" maxlength="10"></div><div class="field"><label for="f-step">Krok +/−</label><input id="f-step" type="number" min="0.01" step="any" value="${h?.step ?? 1}"></div></div>
       <div class="field" id="f-minfield"><label for="f-min">Minut dziennie</label><input id="f-min" type="number" min="1" step="1" inputmode="numeric" value="${h?.clock ? h.target : ''}"></div>
-      <div class="field"><span class="lab">Plan</span><div class="seg"><label><input type="radio" name="f-plan" value="days" ${!h?.freq ? 'checked' : ''}><span>Wybrane dni</span></label><label><input type="radio" name="f-plan" value="freq" ${h?.freq ? 'checked' : ''}><span>X razy w tygodniu</span></label></div></div>
+      <div class="field"><span class="lab">Plan</span><div class="seg seg3"><label><input type="radio" name="f-plan" value="days" ${!h?.freq && !h?.once ? 'checked' : ''}><span>Wybrane dni</span></label><label><input type="radio" name="f-plan" value="freq" ${h?.freq ? 'checked' : ''}><span>X× w tyg.</span></label><label><input type="radio" name="f-plan" value="once" ${h?.once ? 'checked' : ''}><span>Jednorazowo</span></label></div></div>
       <div class="field" id="f-freqfield"><div class="seg seg6">${[1, 2, 3, 4, 5, 6].map(n => `<label><input type="radio" name="f-freq" value="${n}" ${(h?.freq || 3) === n ? 'checked' : ''}><span>${n}×</span></label>`).join('')}</div></div>
       <div class="field" id="f-daysfield"><div class="daypick" role="group" aria-label="Dni nawyku">${DAYS.map((d, i) => `<label><input type="checkbox" id="f-d${i}" value="${i}" ${days.includes(i) ? 'checked' : ''}><span>${d}</span></label>`).join('')}</div><button type="button" class="allweek" id="f-all">Cały tydzień</button></div>
+      <div class="field" id="f-startfield"><label for="f-start">Od kiedy</label><input id="f-start" type="date" value="${h && !h.once ? h.created : today}" ${h ? '' : `min="${today}"`}></div>
+      <div class="field" id="f-oncefield"><label for="f-once">Dzień (do 6 miesięcy naprzód)</label><input id="f-once" type="date" value="${h?.once || ''}" min="${today}" max="${onceMax}"></div>
       <div class="field"><span class="lab">Pora</span><div class="seg seg4">${[['', '—'], ...TIMES].map(([v, l]) => `<label><input type="radio" name="f-time" id="f-time-${v || 'any'}" value="${v}" ${(h?.time || '') === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
       <button class="primary" type="submit">${h ? 'Zapisz' : 'Dodaj'}</button>
       ${h ? `<button class="danger" type="button" id="f-delete">Usuń nawyk</button>` : ''}
@@ -576,8 +591,9 @@
       const tp = f.querySelector('input[name="f-type"]:checked').value;
       $('f-numfields').hidden = tp !== 'num';
       $('f-minfield').hidden = tp !== 'timer';
-      const freq = f.querySelector('input[name="f-plan"]:checked').value === 'freq';
-      $('f-freqfield').hidden = !freq; $('f-daysfield').hidden = freq;
+      const plan = f.querySelector('input[name="f-plan"]:checked').value;
+      $('f-freqfield').hidden = plan !== 'freq'; $('f-daysfield').hidden = plan !== 'days';
+      $('f-startfield').hidden = plan === 'once'; $('f-oncefield').hidden = plan !== 'once';
     };
     f.querySelectorAll('input[name="f-type"], input[name="f-plan"]').forEach(r => r.addEventListener('change', sync)); sync();
     f.style.display = 'flex'; f.style.flexDirection = 'column'; f.style.gap = '16px';
@@ -588,9 +604,14 @@
       const kind = f.querySelector('input[name="f-type"]:checked').value, isTimer = kind === 'timer', type = isTimer ? 'num' : kind;
       const mins = parseFloat($('f-min').value);
       if (isTimer && !(mins > 0)) { toast('Podaj minuty'); $('f-min').focus(); return; }
-      const freqOn = f.querySelector('input[name="f-plan"]:checked').value === 'freq';
+      const plan = f.querySelector('input[name="f-plan"]:checked').value, freqOn = plan === 'freq';
       const freq = freqOn ? +f.querySelector('input[name="f-freq"]:checked').value : 0;
-      const sel = freqOn ? [...ALL] : [...f.querySelectorAll('.daypick input:checked')].map(x => +x.value);
+      // jednorazowy: jeden dzień, od dziś do 6 miesięcy naprzód; pozostałe plany: data startu (może być w przyszłości)
+      const once = plan === 'once' ? $('f-once').value : '';
+      if (plan === 'once' && once !== h?.once && !(once >= today && once <= onceMax)) { toast(once ? 'Wybierz dzień od dziś do 6 miesięcy naprzód' : 'Wybierz dzień'); $('f-once').focus(); return; }
+      const start = $('f-start').value || (h && !h.once ? h.created : today);
+      if (plan !== 'once' && !h && start < today) { toast('Start nie może być w przeszłości'); $('f-start').focus(); return; }
+      const sel = once ? [dow(fromKey(once))] : freqOn ? [...ALL] : [...f.querySelectorAll('.daypick input:checked')].map(x => +x.value);
       if (!sel.length) { toast('Wybierz przynajmniej jeden dzień'); return; }
       const rawTarget = parseFloat($('f-target').value);
       if (kind === 'num' && !(rawTarget > 0)) { toast('Podaj cel dzienny'); $('f-target').focus(); return; }
@@ -598,15 +619,17 @@
       const step = Math.max(0.01, parseFloat($('f-step').value) || 1);
       const unit = $('f-unit').value.trim();
       const time = f.querySelector('input[name="f-time"]:checked')?.value || '';
-      // nawyk obowiązuje od dnia dodania; wcześniejsze dni pokazują „?”
-      const target_ = h || { id: 'h' + Date.now().toString(36), created: todayKey() };
+      // nawyk obowiązuje od daty startu (domyślnie dziś); jednorazowy — tylko w swoim dniu
+      const target_ = h || { id: 'h' + Date.now().toString(36) };
+      target_.created = once || start;
+      if (once) target_.once = once; else delete target_.once;
       Object.assign(target_, isTimer ? { name, type, target: Math.round(mins), step: 5, unit: 'min', days: sel, timer: 'min', clock: true } : { name, type, target, step, unit, days: sel, timer: '' });
       if (!isTimer) delete target_.clock;
       delete target_.dur;
       if (freq) target_.freq = freq; else delete target_.freq;
       if (time) target_.time = time; else delete target_.time;
       if (!h) state.habits.push(target_);
-      save(); close(); render(); toast(h ? 'Zapisano' : `Dodano „${name}”`);
+      save(); close(); render(); toast(h ? 'Zapisano' : target_.created > today ? `Zaplanowano „${name}” na ${dayLabel(target_.created)}` : `Dodano „${name}”`);
     });
     const del = $('f-delete');
     if (del) del.addEventListener('click', () => confirmDelete(h.id));

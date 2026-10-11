@@ -36,6 +36,7 @@ W Supabase: tabela `public.user_data (user_id, data jsonb, updated_at)` z RLS (k
 - Na telefonie nie da się przybliżać ani przesuwać ekranu w bok.
 - Animacje: wejście listy po nawigacji, przesunięcie przy zmianie dnia/tygodnia, „pyknięcie” i rysowany ptaszek przy odhaczeniu, płynny licznik %, okienka i powiadomienia. Wyłączają się przy systemowym „ogranicz ruch”.
 - **+ Dodaj** dodaje nawyk: tak/nie albo liczbowy (cel dzienny, jednostka, krok +/−), z wyborem dni i pory dnia.
+- Plan nawyku: wybrane dni, X razy w tygodniu albo **jednorazowo** (jeden dzień, od dziś do 6 miesięcy naprzód). Pole „Od kiedy” pozwala zacząć nawyk w przyszłości. Nawyki, które jeszcze się nie zaczęły, i przyszłe jednorazowe czekają w sekcji „Zaplanowane” na dole listy (posortowane po dacie); jednorazowy pokazuje się w liście tylko w swoim dniu.
 - **⋯ przy nawyku** pokazuje ołówek (edycja) i × (usunięcie).
 - Klik w **kółko** dnia: nawyk liczbowy otwiera edytor wartości, nawyk tak/nie przełącza zrobione ↔ puste.
 - Widoki **Tydzień / Kalendarz / Podsumowanie** (na telefonie w menu ☰). Kalendarz pokazuje % zrobionych nawyków w każdym dniu; klik w dzień otwiera jego tydzień.

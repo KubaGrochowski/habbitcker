@@ -1,12 +1,12 @@
 /* Habbitcker — service worker: aplikacja działa offline. Dane nawyków nie są tu przechowywane (zostają w localStorage). */
-const VERSION = 'v56';
+const VERSION = 'v57';
 const CACHE = `tygodnik-${VERSION}`;
 const SHELL = [
   './',
   'index.html',
-  'css/styles.css?v=56',
-  'js/cloud.js?v=56',
-  'js/app.js?v=56',
+  'css/styles.css?v=57',
+  'js/cloud.js?v=57',
+  'js/app.js?v=57',
   'manifest.webmanifest',
   'icons/favicon.png',
   'icons/icon-192.png',
